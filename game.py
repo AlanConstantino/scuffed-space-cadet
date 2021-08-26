@@ -7,11 +7,14 @@
 # - Stagger the bullets when firing for all entities (they spawn too fast)
 # - Add pause functionality to game
 # - Add a simple menu (play, exit, options... if it isn't a pain in the ass)
-# - Add funny sound effects
-# - Use Dark Souls moan sound whenever your life gets taken away
-# - Use Dark Souls death sound whenever you die
-# - Use Dark Souls "Very good" fx when player wins
-# - Use Tyler1 gun sound fx for bullet shooting
+
+# BUGS:
+# - Boss shooting not working properly
+# - When reaching Game Over screen, it still spawns enemies,
+#   doesn't happen when you reach Win screen though
+# - When hit by a boss bullet, you instantly die instead of
+#   subtracting a life, you just lost. Has something to do
+#   with the shoot() method in Boss class
 
 import pygame, sys, random, time
 
@@ -20,6 +23,7 @@ before = time.time()
 # initialize
 pygame.init()
 pygame.font.init()
+pygame.mixer.init()
 
 # Window title
 pygame.display.set_caption('Scuffed Space Cadet')
@@ -48,7 +52,40 @@ PLAYER_IMG = './assets/images/player.png'
 BULLET_IMG = './assets/images/bullet2.png'
 BOSS_IMG   = './assets/images/evil-ship.png'  # purple boss ship
 ALIEN_IMG  = './assets/images/alien.png'      # alien boss ship
-# GUNSHOT_SOUND = './assets/sound/gunshot.wav'  # gunshot sound
+
+# sound volume
+MASTER_VOLUME         = 0.5
+SFX_VOLUME            = 0.5
+BGM_VOLUME            = 0.8
+
+# Sound FX Path
+PLAYER_GUN_SOUND      = './assets/sound/sfx/laserSmall2.ogg'
+ENEMY_GUN_SOUND       = './assets/sound/sfx/laserSmall4.ogg'
+BOSS_GUN_SOUND        = './assets/sound/sfx/laserSmall3.ogg'
+EXPLOSION_SOUND       = './assets/sound/sfx/explosion.ogg'
+SCORE_SOUND           = './assets/sound/sfx/bonus.wav'
+DEATH_SOUND           = './assets/sound/sfx/death.wav'
+WIN_SOUND             = './assets/sound/sfx/win.wav'
+ALIEN_HOVERING_SOUND  = './assets/sound/sfx/alien-ship-engine.ogg'
+BGM                   = './assets/sound/music/ror1-monsoon.wav'
+
+# audio channels
+channels_reserved = 3
+for i in range(channels_reserved):
+    pygame.mixer.set_reserved(i)
+channel1 = pygame.mixer.Channel(0) # 
+channel2 = pygame.mixer.Channel(1) # boss ship engine sound
+channel3 = pygame.mixer.Channel(2) # 
+channel4 = pygame.mixer.Channel(3)
+channel5 = pygame.mixer.Channel(4)
+channel6 = pygame.mixer.Channel(5)
+channel7 = pygame.mixer.Channel(6)
+channel8 = pygame.mixer.Channel(7)
+
+# BGM music
+pygame.mixer.music.load(BGM)
+pygame.mixer.music.play(-1)
+pygame.mixer.music.set_volume(MASTER_VOLUME * BGM_VOLUME)
 
 # to store all sprites for easy manipulation
 ALL_SPRITES = pygame.sprite.Group()
@@ -70,7 +107,34 @@ class Spaceship(pygame.sprite.Sprite):
         self.has_won = False
         self.has_lost = False
         self.last_shot = time.time()
-        self.shot_delay = 0.0125
+        self.shot_delay = 0.03
+        self.damage = 10
+        # sound
+        self.sounds = {
+            'explode': {
+                'has_played': False,
+                'sound': pygame.mixer.Sound(EXPLOSION_SOUND),
+            },
+            'shoot':   {
+                'has_played': False,
+                'sound': pygame.mixer.Sound(PLAYER_GUN_SOUND),
+            },
+            'score':   {
+                'has_played': False,
+                'sound': pygame.mixer.Sound(SCORE_SOUND)
+            },
+            'death':   {
+                'has_played': False,
+                'sound': pygame.mixer.Sound(DEATH_SOUND),
+            },
+            'win':     {
+                'has_played': False,
+                'sound': pygame.mixer.Sound(WIN_SOUND),
+            },
+        }
+        # setting volume level for sounds
+        for data in self.sounds:
+            self.sounds[data]['sound'].set_volume(MASTER_VOLUME * SFX_VOLUME)
 
     def stop(self):
         self.prev_speed = self.speed
@@ -83,7 +147,6 @@ class Spaceship(pygame.sprite.Sprite):
             self.speed = speed if speed != 0 else 550
 
     def shoot(self):
-        # self.firing_sound.play()
         bullet = Bullet(BULLET_IMG, self, 1800, 'up', (self.rect.width * 0.5), 0) # what the bullet looks like
         ALL_SPRITES.add(bullet)     # adding bullet to ALL_SPRITES group
         player_bullet_group.add(bullet)    # added bullet to bullet group
@@ -92,7 +155,7 @@ class Spaceship(pygame.sprite.Sprite):
         pressed_keys = pygame.key.get_pressed()
 
         # move up
-        if self.rect.top > -10:
+        if self.rect.top > 0:
             if pressed_keys[pygame.K_UP]:
                 self.rect.move_ip(0, -self.speed * dt) # modifies original rect by moving it in place
                 # self.rect.y -= self.speed * dt # updates original y value of rect
@@ -106,7 +169,7 @@ class Spaceship(pygame.sprite.Sprite):
                 # self.rect = self.rect.move(0, self.speed * dt)
 
         # move left
-        if self.rect.left > -20:
+        if self.rect.left > 0:
             if pressed_keys[pygame.K_LEFT]:
                 self.rect.move_ip(-self.speed * dt, 0)
                 # self.rect.x -= self.speed * dt
@@ -123,6 +186,8 @@ class Spaceship(pygame.sprite.Sprite):
             now = time.time()
             time_to_shoot = (now - self.last_shot) >= self.shot_delay
             if time_to_shoot:
+                channel2.play(self.sounds['shoot']['sound'], 0)
+                self.sounds['shoot']['has_played'] = True
                 self.shoot()
                 self.last_shot = now
 
@@ -142,7 +207,7 @@ class Bullet(pygame.sprite.Sprite):
         self.speed = speed
         self.image = pygame.transform.scale(pygame.image.load(picture_path).convert(), (5, 20))
         self.rect = self.image.get_rect()
-        self.rect.center = [entity.rect.x + x_off, entity.rect.y + y_off] # add 50px for offset since ship width is 100px
+        self.rect.center = [entity.rect.x + x_off, entity.rect.y + y_off]
         self.direction = direction
 
     def stop(self):
@@ -187,7 +252,13 @@ class Enemyship(pygame.sprite.Sprite):
         self.rect = self.image.get_rect(w = 60, h = 30) # hurtbox
         self.rect.center = [random.randint(50, SCREEN_WIDTH - 50), -10] # ship's spawn point
         self.last_shot = time.time()
-        self.shot_delay = 0.1
+        self.shot_delay = 0.2
+        self.sounds = {
+            'shoot':   pygame.mixer.Sound(ENEMY_GUN_SOUND),
+        }
+        # setting volume level for sounds
+        for data in self.sounds:
+            self.sounds[data].set_volume(MASTER_VOLUME * SFX_VOLUME)
 
     def stop(self):
         self.prev_speed = self.speed
@@ -203,16 +274,17 @@ class Enemyship(pygame.sprite.Sprite):
         now = time.time()
         time_to_shoot = (now - self.last_shot) >= self.shot_delay
         if time_to_shoot:
+            self.sounds['shoot'].play()
             new_bullet = Bullet(BULLET_IMG, self, 600, 'down', (self.rect.width * 0.5), (self.rect.height * 0.5) + 50)
             enemy_bullet_group.add(new_bullet)
             ALL_SPRITES.add(new_bullet)
             self.ammo -= 1
-            self.last_shot = now
+            self.last_shot = time.time()
 
     def update(self, dt):
         self.rect.move_ip(0, self.speed * dt)
 
-        if self.ammo >= 0:
+        if self.ammo > 0:
             self.shoot()
 
         if self.rect.bottom > SCREEN_HEIGHT:
@@ -224,7 +296,7 @@ class Enemyship(pygame.sprite.Sprite):
         surface.blit(self.image, self.rect)
 
 class Boss(pygame.sprite.Sprite):
-    def __init__(self, picture_path, speed = 300, ammo = random.randint(10, 25)):
+    def __init__(self, picture_path, speed = 300, ammo = random.randint(10, 20)):
         super().__init__()
         self.prev_speed = 0
         self.speed = speed
@@ -232,13 +304,20 @@ class Boss(pygame.sprite.Sprite):
         self.image = pygame.transform.scale(pygame.image.load(picture_path).convert(), (300, 125)) # image
         self.rect = self.image.get_rect(w = 300, h = 100) # hurtbox
         self.rect.center = [random.randint(200, SCREEN_WIDTH - 300), 150] # ship's spawn point
-        # self.last = time.time() # last time you emptied your ammo
-        self.cooldown = 1       # seconds to wait after reload
         self.health = 10000     # total boss health
         # self.health = 1
+        self.is_dead = False
         self.is_alive = True
+        self.last_reload = time.time()
+        self.reload_delay = 1
         self.last_shot = time.time()
-        self.shot_delay = 1
+        self.shot_delay = 0.05
+        self.sounds = {
+            'shoot':   pygame.mixer.Sound(BOSS_GUN_SOUND),
+        }
+        # setting volume level for sounds
+        for data in self.sounds:
+            self.sounds[data].set_volume(MASTER_VOLUME * SFX_VOLUME)
 
     def stop(self):
         self.prev_speed = self.speed
@@ -253,44 +332,37 @@ class Boss(pygame.sprite.Sprite):
             # self.speed = 300
 
     def reload(self):
-        self.ammo = random.randint(10, 30)
-        # self.ammo = 30
+        time_to_reload = (now - self.last_reload) >= self.reload_delay
+        if time_to_reload:
+            self.ammo = random.randint(10, 20)
 
     def shoot(self):
         now = time.time()
         time_to_shoot = (now - self.last_shot) >= self.shot_delay
         if time_to_shoot:
-            # bullet_speed = random.randint(400, 500)
-            bullet_speed = 700
-            # print(self.rect.x)
-            # print(self.rect.y)
-
-            # as boss ship slides to right, it has a bigger spread than going left
-            # left_fire = Bullet(BULLET_IMG, self, bullet_speed, 'down', self.rect.left * 0.2, self.rect.bottom)
-            # middle_fire = Bullet(BULLET_IMG, self, bullet_speed, 'down', self.rect.left * 0.5, self.rect.bottom)
-            # right_fire = Bullet(BULLET_IMG, self, bullet_speed, 'down', self.rect.left * 0.8, self.rect.bottom)
-
-            left_fire = Bullet(BULLET_IMG, self, bullet_speed, 'down', self.rect.width * 0.5, self.rect.bottom)
-            boss_bullet_group.add(left_fire)
-            ALL_SPRITES.add(left_fire)
-            # left_fire = Bullet(BULLET_IMG, self, bullet_speed, 'down', self.rect.left + 20, self.rect.bottom)
-            # middle_fire = Bullet(BULLET_IMG, self, bullet_speed, 'down', self.rect.left + 60, self.rect.bottom)
-            # right_fire = Bullet(BULLET_IMG, self, bullet_speed, 'down', self.rect.left + 100, self.rect.bottom)
-
-            # boss_bullet_group.add(left_fire, middle_fire, right_fire)
-            # ALL_SPRITES.add(left_fire, middle_fire, right_fire)
-            if self.ammo <= 0:
-                self.reload()
-            else:
-                self.ammo -= 1
-            self.last_shot = time.time()
+            bullet_speed = 600
+            self.sounds['shoot'].play()
+            left_fire = Bullet(BULLET_IMG, self, bullet_speed, 'down', 0, self.rect.bottom)
+            middle_fire = Bullet(BULLET_IMG, self, bullet_speed, 'down', (self.rect.width * 0.5), self.rect.bottom)
+            right_fire = Bullet(BULLET_IMG, self, bullet_speed, 'down', self.rect.width, self.rect.bottom)
+            boss_bullet_group.add(left_fire, middle_fire, right_fire)
+            ALL_SPRITES.add(left_fire, middle_fire, right_fire)
+            self.ammo -= 1
+            self.last_shot = now
 
     def update(self, dt):
         self.rect.move_ip(self.speed * dt, 0)
-        # now = time.time()
+        now = time.time()
 
+        # shoot all ammo
         if self.ammo >= 0:
             self.shoot()
+        else:
+            self.reload()
+
+        if self.ammo <= 0 and (now - self.last_reload) >= self.reload_delay:
+            self.last_reload = now
+            self.reload()
 
         # bounce off left wall
         if self.rect.left >= 0:
@@ -323,6 +395,7 @@ class TextHUD:
         surface.blit(self.text, self.pos)
 
 PAUSED = False
+SECONDS_ENEMY_SPAWN = 3
 
 # Groups
 player_group        = pygame.sprite.GroupSingle() # player
@@ -341,27 +414,48 @@ ALL_SPRITES.add(player)
 boss = Boss(ALIEN_IMG)
 spawned_boss = False
 spawn_regular_enemies = True
+# SPAWN_BOSS_SCORE = 1000
 SPAWN_BOSS_SCORE = 10
 
+# boss sound
+boss_sound = pygame.mixer.Sound(ALIEN_HOVERING_SOUND)
+channel2.play(boss_sound, -1)
+channel2.pause()
+
 # HUD
-center           = (SCREEN_WIDTH * 0.5, SCREEN_HEIGHT * 0.5)
 SHOW_PLAYER_HUD  = True
+center           = (SCREEN_WIDTH * 0.5, SCREEN_HEIGHT * 0.5)
 lives_HUD        = TextHUD(text = 'x{}'.format(player.lives), pos = (SCREEN_WIDTH - 20, 50))
 score_HUD        = TextHUD(text = 'Score: {}'.format(0), pos = (45, 50))
 boss_health_HUD  = TextHUD(text = '{:,}/10,000'.format(10000), pos = (SCREEN_WIDTH * 0.5 - 60, 50))
 win_HUD          = TextHUD(text = 'You Win', pos = center)
-game_over_HUD    = TextHUD(text = 'Game Over', pos = center)
+game_over_HUD    = TextHUD(text = 'YOU DIED', pos = center,  color1 = (220, 20, 60))
 paused_HUD       = TextHUD(text = 'Paused', pos = center, color1 = (0,0,0))
+
+# def loop():
+#     while True:
+#         for event in pygame.event.get():
+#             if event.type == pygame.QUIT:
+#                 pygame.quit()
+#                 sys.exit()
+#         SCREEN.fill((0, 0, 0))
+#         pygame.display.update()
 
 # main game loop
 while True:
     clock.tick(FPS)
     SCREEN.fill((0, 0, 0)) # black
 
+    pygame.time.delay(10)
+
     # delta time
     now = time.time()
     dt = now - prev_time
     prev_time = now
+
+    ####################
+    ###### CHECKS ######
+    ####################
 
     # game over if player has no more lives
     if player.lives == 0:
@@ -373,23 +467,19 @@ while True:
         player.kill()
         for sprite in ALL_SPRITES:
             sprite.kill()
-        # pygame.quit()
-        # sys.exit()
 
+    # kill boss once health is gone
     if boss.health <= 0:
         """
         Player has won.
         """
         print('YOU WIN!')
         boss.is_alive = False
+        boss.is_dead = True
         boss.kill()
         player.has_won = True
         for sprite in ALL_SPRITES:
             sprite.kill()
-
-        # SCREEN.fill((255, 255, 255))
-        # pygame.quit()
-        # sys.exit()
 
     if PAUSED:
         print('GAME IS PAUSED')
@@ -409,13 +499,12 @@ while True:
                         PAUSED = not PAUSED
                         # ALL_SPRITES.move()
 
-    # remove enemies and spawn boss if score threshold is reached 
+    # remove enemies and spawn boss if score threshold is reached
     if player.score >= SPAWN_BOSS_SCORE:
         for enemy in enemy_group:
             enemy.kill()
 
         # spawn
-        print(spawned_boss)
         if not spawned_boss:
             spawn_regular_enemies = False
             boss_group.add(boss)
@@ -423,7 +512,7 @@ while True:
             spawned_boss = True
 
     # every 3 seconds, spawn a new enemy
-    if now - before > 3 and spawn_regular_enemies:
+    if now - before > SECONDS_ENEMY_SPAWN and spawn_regular_enemies:
         """
         Enemy spawn rate.
         """
@@ -431,6 +520,10 @@ while True:
         new_enemy = Enemyship(ENEMIES[random.randint(0, len(ENEMIES) - 1)])
         enemy_group.add(new_enemy)
         ALL_SPRITES.add(new_enemy)
+
+    #########################
+    ###### GAME EVENTS ######
+    #########################
 
     # check for events
     for event in pygame.event.get():
@@ -443,6 +536,11 @@ while True:
         if event.type == pygame.KEYUP:
             if event.key == pygame.K_ESCAPE:
                 PAUSED = not PAUSED
+            if event.key == pygame.K_p:
+                print('pressed p')
+                # print(pygame.mixer.music.get_pos())
+                # pygame.mixer.music.set_pos(150/1000)
+                # print('p pressed')
                 # print(PAUSED)
 
                 # PAUSED = True
@@ -452,12 +550,18 @@ while True:
                 #             PAUSED = False
                 #     SCREEN.fill((255, 255, 255))
 
+    ##############################
+    ###### ENTITY COLLISION ######
+    ##############################
+
     # collision between a player and an enemy
     if pygame.sprite.groupcollide(player_group, enemy_group, False, True):
         """
         Player crashed into a ship.
         """
         player.lives -= 1
+        player.sounds['explode']['sound'].play()
+        player.sounds['explode']['has_played'] = True
         lives_HUD.update('x{}'.format(player.lives))
 
     # collision between an enemy's bullets and the player
@@ -466,25 +570,31 @@ while True:
         Player died to enemy fire.
         """
         player.lives -= 1
+        player.sounds['explode']['sound'].play()
+        player.sounds['explode']['has_played'] = True
         lives_HUD.update('x{}'.format(player.lives))
 
     # collision between player's bullets and enemies
     if pygame.sprite.groupcollide(player_bullet_group, enemy_group, True, True):
         """
         Player killed an enemy. Spawns a new enemy whenever the player kills an enemy.
-        """ 
+        """
         player.score += 100
+        player.sounds['score']['sound'].play()
+        player.sounds['score']['has_played'] = True
         score_HUD.update(text = 'Score: {}'.format(player.score))
         new_enemy = Enemyship(ENEMIES[random.randint(0, len(ENEMIES) - 1)])
         enemy_group.add(new_enemy)
         ALL_SPRITES.add(new_enemy)
-    
+
     # collision between player and boss
     if pygame.sprite.groupcollide(player_group, boss_group, False, False):
         """
         Player collides with boss.
         """
         player.lives -= 1
+        player.sounds['explode']['sound'].play()
+        player.sounds['explode']['has_played'] = True
         lives_HUD.update('x{}'.format(player.lives))
 
     # collision between player's bullets and boss
@@ -492,38 +602,71 @@ while True:
         """
         Player's bullets collide with boss.
         """
-        boss.health -= 10
+        boss.health -= player.damage
         boss_health_HUD.update(text = '{:,}/10,000'.format(boss.health))
 
     # collision between the boss' bullets and the player
     if pygame.sprite.groupcollide(boss_bullet_group, player_group, False, False):
         player.lives -= 1
+        player.sounds['explode']['sound'].play()
+        player.sounds['explode']['has_played'] = True
         lives_HUD.update('x{}'.format(player.lives))
+
+    #########################
+    ###### GAME STATUS ######
+    #########################
 
     # draw HUD elements to screen
     if SHOW_PLAYER_HUD:
         lives_HUD.draw(SCREEN)
         score_HUD.draw(SCREEN)
-    
+
     # draw win screen if player won
     if player.has_won:
+        pygame.mixer.music.stop()
+        spawn_regular_enemies = False
+
+        # if sound has not played yet, play it
+        if not player.sounds['win']['has_played']:
+            player.sounds['win']['sound'].play()
+            player.sounds['win']['has_played'] = True
+
         win_HUD.draw(SCREEN)
         SHOW_PLAYER_HUD = False
 
     # draw lose screen if player lost
     if player.has_lost:
+        pygame.mixer.music.stop()
+        spawn_regular_enemies = False
+
+        # if sound has not played yet, play it
+        if not player.sounds['death']['has_played']:
+            player.sounds['death']['sound'].play()
+            player.sounds['death']['has_played'] = True
+
         game_over_HUD.draw(SCREEN)
         SHOW_PLAYER_HUD = False
 
     # draw boss health if boss has spawned
     if boss.is_alive and spawned_boss:
+        channel2.unpause()
         boss_health_HUD.draw(SCREEN)
 
     # draws all sprites to screen
     ALL_SPRITES.draw(SCREEN)
-    
+
     # updates the position of all sprites (i.e. moving surfaces)
     ALL_SPRITES.update(dt)
 
     # update pygame
     pygame.display.update()
+
+
+# SOUND
+# .wav for sound fx
+# .mp3 for music
+#
+# bulletSound = pygame.mixer.Sound('fx.wav')
+# bulletSound.play()
+# music = pygame.mixer.music.load('music.mp3')
+# pygame.mixer.music.play(-1) # plays in background music
