@@ -11,6 +11,7 @@ A scuffed 2D shoot 'em up.
 - ArrowKeys: Movement
 - H: Show/hide HUD
 - M: Mute game
+- R: Restart game
 
 ## Features
 - Sound
