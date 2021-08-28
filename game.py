@@ -76,6 +76,7 @@ pygame.mixer.music.set_volume(MASTER_VOLUME * BGM_VOLUME)
 class Spaceship(pygame.sprite.Sprite):
     def __init__(self, picture_path, speed = 550):
         super().__init__()
+        self.prev_speed         = 0
         self.is_invincible      = False # boolean, player is either invincible or he is not
         self.last_invincible    = 0     # last time the player went invincible
         self.seconds_invincible = 2     # how long invincibility will last
@@ -183,6 +184,7 @@ class Spaceship(pygame.sprite.Sprite):
 class Bullet(pygame.sprite.Sprite):
     def __init__(self, picture_path, entity, speed = 800, direction = 'up', x_off = 0, y_off = 0):
         super().__init__()
+        self.prev_speed  = 0
         self.speed       = speed
         self.image       = pygame.transform.scale(pygame.image.load(picture_path).convert(), (5, 20))
         self.rect        = self.image.get_rect()
@@ -214,6 +216,7 @@ class Bullet(pygame.sprite.Sprite):
 class Enemyship(pygame.sprite.Sprite):
     def __init__(self, picture_path):
         super().__init__()
+        self.prev_speed  = 0
         self.speed       = random.randint(200, 450)
         self.ammo        = random.randint(1, 6)
         self.image       = pygame.transform.scale(pygame.transform.flip(pygame.image.load(picture_path).convert(), False, True), (60, 60)) # image
@@ -255,6 +258,7 @@ class Enemyship(pygame.sprite.Sprite):
 class Boss(pygame.sprite.Sprite):
     def __init__(self, picture_path, speed = 300, ammo = random.randint(10, 20)):
         super().__init__()
+        self.prev_speed   = 0
         self.speed        = speed
         self.ammo         = ammo
         self.image        = pygame.transform.scale(pygame.image.load(picture_path).convert(), (300, 125)) # image
@@ -359,7 +363,7 @@ channel1.play(boss_sound, -1)
 channel1.pause()
 
 # HUD
-center           = (SCREEN_WIDTH * 0.5, SCREEN_HEIGHT * 0.5)
+center           = (int(SCREEN_WIDTH * 0.5), int(SCREEN_HEIGHT * 0.5))
 lives_HUD        = TextHUD(text = 'x{}'.format(player.lives), pos = (SCREEN_WIDTH - 20, 50))
 score_HUD        = TextHUD(text = 'Score: {}'.format(0), pos = (45, 50))
 boss_health_HUD  = TextHUD(text = '{:,}/10,000'.format(10000), pos = (SCREEN_WIDTH * 0.5 - 60, 50))
@@ -374,6 +378,14 @@ ALL_HUDS = []
 ALL_HUDS.append(lives_HUD)
 ALL_HUDS.append(score_HUD)
 ALL_HUDS.append(boss_health_HUD)
+
+# container for text screens
+ALL_TEXT = []
+ALL_TEXT.append(win_text)
+ALL_TEXT.append(game_over_text)
+ALL_TEXT.append(paused_text)
+
+PAUSED = False
 
 # main game loop
 while True:
@@ -451,6 +463,11 @@ while True:
             pygame.quit()
             sys.exit()
         if event.type == pygame.KEYUP:
+            if event.key == pygame.K_p or event.key == pygame.K_ESCAPE:
+                """
+                Pauses game.
+                """
+                PAUSED = not PAUSED
             if event.key == pygame.K_h:
                 """
                 Hides HUD when 'H' key is pressed.
@@ -461,10 +478,25 @@ while True:
                 """
                 Restarts games when 'R' key is pressed.
                 """
-                print('r has been pressed')
+                spawn_regular_enemies = True
+
                 for sprite in ALL_SPRITES:
                     sprite.kill()
-                pass
+
+                for text in ALL_TEXT:
+                    text.set_visibility = False
+
+                # reset player
+                player = Spaceship(PLAYER_IMG)
+                player_group.add(player)
+                ALL_SPRITES.add(player)
+
+                # reset boss
+                boss = Boss(ALIEN_IMG)
+
+                # reset HUD with new player data
+                lives_HUD.update('x{}'.format(player.lives))
+                score_HUD.update(text = 'Score: {}'.format(player.score))
 
     ##############################
     ###### ENTITY COLLISION ######
@@ -504,7 +536,6 @@ while True:
         player.score += 100
         player.sounds['score']['sound'].play()
         player.sounds['score']['has_played'] = True
-        # score_HUD.update(text = 'Score: {}'.format(player.score))
         new_enemy = Enemyship(ENEMIES[random.randint(0, len(ENEMIES) - 1)])
         enemy_group.add(new_enemy)
         ALL_SPRITES.add(new_enemy)
@@ -594,11 +625,13 @@ while True:
             player.sounds['death']['sound'].play()
             player.sounds['death']['has_played'] = True
 
-    # draws all sprites to screen
-    ALL_SPRITES.draw(SCREEN)
-
-    # updates the position of all sprites (i.e. moving surfaces)
-    ALL_SPRITES.update(dt)
+    # draw everything to screen if game is not paused, else show paused screen
+    if not PAUSED:
+        ALL_SPRITES.draw(SCREEN)
+        ALL_SPRITES.update(dt)
+    else:
+        SCREEN.fill((0, 0, 0))
+        paused_text.draw(SCREEN)
 
     # update pygame
     pygame.display.update()
