@@ -70,17 +70,18 @@ ALIEN_HOVERING_SOUND  = './assets/sound/sfx/alien-ship-engine.ogg'
 BGM                   = './assets/sound/music/ror1-monsoon.wav'
 
 # audio channels
-channels_reserved = 3
-for i in range(channels_reserved):
-    pygame.mixer.set_reserved(i)
-channel1 = pygame.mixer.Channel(0) # 
-channel2 = pygame.mixer.Channel(1) # boss ship engine sound
-channel3 = pygame.mixer.Channel(2) # 
-channel4 = pygame.mixer.Channel(3)
-channel5 = pygame.mixer.Channel(4)
-channel6 = pygame.mixer.Channel(5)
-channel7 = pygame.mixer.Channel(6)
-channel8 = pygame.mixer.Channel(7)
+# channels_reserved = 3
+# for i in range(channels_reserved):
+#     pygame.mixer.set_reserved(i)
+pygame.mixer.set_reserved(1)
+channel1 = pygame.mixer.Channel(0) # boss ship engine sound
+channel2 = pygame.mixer.Channel(1) # unused
+channel3 = pygame.mixer.Channel(2) # unused
+channel4 = pygame.mixer.Channel(3) # unused
+channel5 = pygame.mixer.Channel(4) # unused
+channel6 = pygame.mixer.Channel(5) # unused
+channel7 = pygame.mixer.Channel(6) # unused
+channel8 = pygame.mixer.Channel(7) # unused
 
 # BGM music
 pygame.mixer.music.load(BGM)
@@ -104,12 +105,12 @@ class Spaceship(pygame.sprite.Sprite):
         self.rect.center = [(SCREEN_WIDTH * 0.5), (SCREEN_HEIGHT * 0.9)] # ship's spawn point
         self.lives = 3
         self.score = 0
+        self.is_alive = True
         self.has_won = False
         self.has_lost = False
         self.last_shot = time.time()
         self.shot_delay = 0.03
         self.damage = 10
-        # sound
         self.sounds = {
             'explode': {
                 'has_played': False,
@@ -186,7 +187,7 @@ class Spaceship(pygame.sprite.Sprite):
             now = time.time()
             time_to_shoot = (now - self.last_shot) >= self.shot_delay
             if time_to_shoot:
-                channel2.play(self.sounds['shoot']['sound'], 0)
+                channel1.play(self.sounds['shoot']['sound'], 0)
                 self.sounds['shoot']['has_played'] = True
                 self.shoot()
                 self.last_shot = now
@@ -304,10 +305,9 @@ class Boss(pygame.sprite.Sprite):
         self.image = pygame.transform.scale(pygame.image.load(picture_path).convert(), (300, 125)) # image
         self.rect = self.image.get_rect(w = 300, h = 100) # hurtbox
         self.rect.center = [random.randint(200, SCREEN_WIDTH - 300), 150] # ship's spawn point
-        self.health = 10000     # total boss health
-        # self.health = 1
-        self.is_dead = False
-        self.is_alive = True
+        # self.health = 10000     # total boss health
+        self.health = 1
+        self.is_alive = False
         self.last_reload = time.time()
         self.reload_delay = 1
         self.last_shot = time.time()
@@ -387,12 +387,22 @@ class TextHUD:
         self.font = pygame.font.Font(font, size)
         self.text = self.font.render(str(text), True, color1, color2)
         self.pos  = (abs(pos[0] - size), abs(pos[1] - size))
+        self.show = True
+
+    def set_visibility(self, visibility):
+        self.show = visibility
 
     def update(self, text, anti_alias = True, color1 = (255, 255, 255), color2 = None):
-        self.text = self.font.render('{}'.format(str(text)), True, color1, color2)
+        if self.show == True:
+            self.text = self.font.render('{}'.format(str(text)), True, color1, color2)
 
     def draw(self, surface):
-        surface.blit(self.text, self.pos)
+        if self.show == True:
+            surface.blit(self.text, self.pos)
+
+def kill_all(entities):
+    for entity in entities:
+        entity.kill()
 
 PAUSED = False
 SECONDS_ENEMY_SPAWN = 3
@@ -412,25 +422,30 @@ ALL_SPRITES.add(player)
 
 # Alien Boss
 boss = Boss(ALIEN_IMG)
-spawned_boss = False
 spawn_regular_enemies = True
 # SPAWN_BOSS_SCORE = 1000
 SPAWN_BOSS_SCORE = 10
 
 # boss sound
 boss_sound = pygame.mixer.Sound(ALIEN_HOVERING_SOUND)
-channel2.play(boss_sound, -1)
-channel2.pause()
+channel1.play(boss_sound, -1)
+channel1.pause()
 
 # HUD
-SHOW_PLAYER_HUD  = True
-center           = (SCREEN_WIDTH * 0.5, SCREEN_HEIGHT * 0.5)
-lives_HUD        = TextHUD(text = 'x{}'.format(player.lives), pos = (SCREEN_WIDTH - 20, 50))
-score_HUD        = TextHUD(text = 'Score: {}'.format(0), pos = (45, 50))
-boss_health_HUD  = TextHUD(text = '{:,}/10,000'.format(10000), pos = (SCREEN_WIDTH * 0.5 - 60, 50))
-win_HUD          = TextHUD(text = 'You Win', pos = center)
-game_over_HUD    = TextHUD(text = 'YOU DIED', pos = center,  color1 = (220, 20, 60))
-paused_HUD       = TextHUD(text = 'Paused', pos = center, color1 = (0,0,0))
+center          = (SCREEN_WIDTH * 0.5, SCREEN_HEIGHT * 0.5)
+lives_HUD       = TextHUD(text = 'x{}'.format(player.lives), pos = (SCREEN_WIDTH - 20, 50))
+score_HUD       = TextHUD(text = 'Score: {}'.format(0), pos = (45, 50))
+boss_health_HUD = TextHUD(text = '{:,}/10,000'.format(10000), pos = (SCREEN_WIDTH * 0.5 - 60, 50))
+
+# game state text to be displayed on screen at a later time
+win_text        = TextHUD(text = 'You Win', pos = center)
+game_over_text   = TextHUD(text = 'YOU DIED', pos = center,  color1 = (220, 20, 60))
+paused_text      = TextHUD(text = 'Paused', pos = center, color1 = (0,0,0))
+
+ALL_HUDS = []
+ALL_HUDS.append(lives_HUD)
+ALL_HUDS.append(score_HUD)
+ALL_HUDS.append(boss_health_HUD)
 
 # def loop():
 #     while True:
@@ -463,10 +478,10 @@ while True:
         Game over.
         """
         print('GAME OVER!')
+        player.is_alive = False
         player.has_lost = True
         player.kill()
-        for sprite in ALL_SPRITES:
-            sprite.kill()
+        kill_all(ALL_SPRITES)
 
     # kill boss once health is gone
     if boss.health <= 0:
@@ -474,19 +489,19 @@ while True:
         Player has won.
         """
         print('YOU WIN!')
+        player.is_alive = False
+        player.has_won = True
         boss.is_alive = False
         boss.is_dead = True
         boss.kill()
-        player.has_won = True
-        for sprite in ALL_SPRITES:
-            sprite.kill()
+        kill_all(ALL_SPRITES)
 
     if PAUSED:
         print('GAME IS PAUSED')
         # ALL_SPRITES.stop()
         while PAUSED:
             SCREEN.fill((255, 255, 255))
-            paused_HUD.draw(SCREEN)
+            paused_text.draw(SCREEN)
             for event in pygame.event.get():
                 """
                 Event checking/handling.
@@ -501,18 +516,16 @@ while True:
 
     # remove enemies and spawn boss if score threshold is reached
     if player.score >= SPAWN_BOSS_SCORE:
-        for enemy in enemy_group:
-            enemy.kill()
+        kill_all(enemy_group)
 
-        # spawn
-        if not spawned_boss:
+        if boss.is_alive == False:
+            boss.is_alive = True
             spawn_regular_enemies = False
             boss_group.add(boss)
             ALL_SPRITES.add(boss)
-            spawned_boss = True
 
     # every 3 seconds, spawn a new enemy
-    if now - before > SECONDS_ENEMY_SPAWN and spawn_regular_enemies:
+    if spawn_regular_enemies and now - before > SECONDS_ENEMY_SPAWN:
         """
         Enemy spawn rate.
         """
@@ -536,8 +549,11 @@ while True:
         if event.type == pygame.KEYUP:
             if event.key == pygame.K_ESCAPE:
                 PAUSED = not PAUSED
-            if event.key == pygame.K_p:
-                print('pressed p')
+            if event.key == pygame.K_h:
+                # turns off all HUD
+                for hud in ALL_HUDS:
+                    hud.set_visibility(not hud.show)
+
                 # print(pygame.mixer.music.get_pos())
                 # pygame.mixer.music.set_pos(150/1000)
                 # print('p pressed')
@@ -607,6 +623,9 @@ while True:
 
     # collision between the boss' bullets and the player
     if pygame.sprite.groupcollide(boss_bullet_group, player_group, False, False):
+        """
+        Boss' bullets collide with the player.
+        """
         player.lives -= 1
         player.sounds['explode']['sound'].play()
         player.sounds['explode']['has_played'] = True
@@ -616,41 +635,58 @@ while True:
     ###### GAME STATUS ######
     #########################
 
-    # draw HUD elements to screen
-    if SHOW_PLAYER_HUD:
+    if player.is_alive:
+        """
+        Draw HUD specfic to the player.
+        """
         lives_HUD.draw(SCREEN)
         score_HUD.draw(SCREEN)
 
+    if boss.is_alive:
+        """
+        Draw HUD specfic to the boss.
+        """
+        boss_health_HUD.draw(SCREEN)
+
     # draw win screen if player won
     if player.has_won:
+        """
+        Action to take when a player wins.
+        """
         pygame.mixer.music.stop()
         spawn_regular_enemies = False
+        boss.is_alive = False
+        player.is_alive = False
+        boss_health_HUD.set_visibility(False)
+
+        kill_all(ALL_SPRITES)
 
         # if sound has not played yet, play it
         if not player.sounds['win']['has_played']:
             player.sounds['win']['sound'].play()
             player.sounds['win']['has_played'] = True
 
-        win_HUD.draw(SCREEN)
-        SHOW_PLAYER_HUD = False
+        win_text.draw(SCREEN)
 
     # draw lose screen if player lost
     if player.has_lost:
+        """
+        Action to take when the player has lost.
+        """
         pygame.mixer.music.stop()
         spawn_regular_enemies = False
+        boss.is_alive = False
+        player.is_alive = False
+        boss_health_HUD.set_visibility(False)
+
+        kill_all(ALL_SPRITES)
 
         # if sound has not played yet, play it
         if not player.sounds['death']['has_played']:
             player.sounds['death']['sound'].play()
             player.sounds['death']['has_played'] = True
 
-        game_over_HUD.draw(SCREEN)
-        SHOW_PLAYER_HUD = False
-
-    # draw boss health if boss has spawned
-    if boss.is_alive and spawned_boss:
-        channel2.unpause()
-        boss_health_HUD.draw(SCREEN)
+        game_over_text.draw(SCREEN)
 
     # draws all sprites to screen
     ALL_SPRITES.draw(SCREEN)
