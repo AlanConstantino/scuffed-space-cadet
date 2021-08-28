@@ -91,14 +91,10 @@ pygame.mixer.music.set_volume(MASTER_VOLUME * BGM_VOLUME)
 # to store all sprites for easy manipulation
 ALL_SPRITES = pygame.sprite.Group()
 
-# state
-PAUSED = False
-
 # the player is the spaceship
 class Spaceship(pygame.sprite.Sprite):
     def __init__(self, picture_path, speed = 550):
         super().__init__()
-        self.prev_speed = 0
         self.speed = speed
         self.image = pygame.transform.scale(pygame.image.load(picture_path).convert(), (50, 50)) # size of image
         self.rect = self.image.get_rect() # size of hurtbox
@@ -137,60 +133,53 @@ class Spaceship(pygame.sprite.Sprite):
         for data in self.sounds:
             self.sounds[data]['sound'].set_volume(MASTER_VOLUME * SFX_VOLUME)
 
-    def stop(self):
-        self.prev_speed = self.speed
-        self.speed = 0
-
-    def move(self, speed = None):
-        if speed is None:
-            self.speed = self.prev_speed if self.prev_speed != 0 else 550
-        else:
-            self.speed = speed if speed != 0 else 550
-
     def shoot(self):
         bullet = Bullet(BULLET_IMG, self, 1800, 'up', (self.rect.width * 0.5), 0) # what the bullet looks like
         ALL_SPRITES.add(bullet)     # adding bullet to ALL_SPRITES group
         player_bullet_group.add(bullet)    # added bullet to bullet group
 
     def update(self, dt):
-        pressed_keys = pygame.key.get_pressed()
+        if self.speed <= 0:
+            return
+        else:
+            pressed_keys = pygame.key.get_pressed()
 
-        # move up
-        if self.rect.top > 0:
-            if pressed_keys[pygame.K_UP]:
-                self.rect.move_ip(0, -self.speed * dt) # modifies original rect by moving it in place
-                # self.rect.y -= self.speed * dt # updates original y value of rect
-                # self.rect = self.rect.move(0, -self.speed * dt) # creates a new rect and reassigns old rect to newly created rect
+            # move up
+            if self.rect.top > 0:
+                if pressed_keys[pygame.K_UP]:
+                    self.rect.move_ip(0, -self.speed * dt) # modifies original rect by moving it in place
+                    # self.rect.y -= self.speed * dt # updates original y value of rect
+                    # self.rect = self.rect.move(0, -self.speed * dt) # creates a new rect and reassigns old rect to newly created rect
 
-        # move down
-        if self.rect.bottom < SCREEN_HEIGHT:
-            if pressed_keys[pygame.K_DOWN]:
-                self.rect.move_ip(0, self.speed * dt)
-                # self.rect.y += self.speed * dt
-                # self.rect = self.rect.move(0, self.speed * dt)
+            # move down
+            if self.rect.bottom < SCREEN_HEIGHT:
+                if pressed_keys[pygame.K_DOWN]:
+                    self.rect.move_ip(0, self.speed * dt)
+                    # self.rect.y += self.speed * dt
+                    # self.rect = self.rect.move(0, self.speed * dt)
 
-        # move left
-        if self.rect.left > 0:
-            if pressed_keys[pygame.K_LEFT]:
-                self.rect.move_ip(-self.speed * dt, 0)
-                # self.rect.x -= self.speed * dt
-                # self.rect = self.rect.move(-self.speed * dt, 0)
+            # move left
+            if self.rect.left > 0:
+                if pressed_keys[pygame.K_LEFT]:
+                    self.rect.move_ip(-self.speed * dt, 0)
+                    # self.rect.x -= self.speed * dt
+                    # self.rect = self.rect.move(-self.speed * dt, 0)
 
-        # move right
-        if self.rect.right < SCREEN_WIDTH:
-            if pressed_keys[pygame.K_RIGHT]:
-                self.rect.move_ip(self.speed * dt, 0)
-                # self.rect.x += self.speed * dt
-                # self.rect = self.rect.move(self.speed * dt, 0)
+            # move right
+            if self.rect.right < SCREEN_WIDTH:
+                if pressed_keys[pygame.K_RIGHT]:
+                    self.rect.move_ip(self.speed * dt, 0)
+                    # self.rect.x += self.speed * dt
+                    # self.rect = self.rect.move(self.speed * dt, 0)
 
-        if pressed_keys[pygame.K_SPACE]:
-            now = time.time()
-            time_to_shoot = (now - self.last_shot) >= self.shot_delay
-            if time_to_shoot:
-                channel1.play(self.sounds['shoot']['sound'], 0)
-                self.sounds['shoot']['has_played'] = True
-                self.shoot()
-                self.last_shot = now
+            if pressed_keys[pygame.K_SPACE]:
+                now = time.time()
+                time_to_shoot = (now - self.last_shot) >= self.shot_delay
+                if time_to_shoot:
+                    channel1.play(self.sounds['shoot']['sound'], 0)
+                    self.sounds['shoot']['has_played'] = True
+                    self.shoot()
+                    self.last_shot = now
 
     def draw(self, surface):
         surface.blit(self.image, self.rect)
@@ -204,41 +193,33 @@ class Bullet(pygame.sprite.Sprite):
     # y_off        - number - offset of y coordinate
     def __init__(self, picture_path, entity, speed = 800, direction = 'up', x_off = 0, y_off = 0):
         super().__init__()
-        self.prev_speed = 0
         self.speed = speed
         self.image = pygame.transform.scale(pygame.image.load(picture_path).convert(), (5, 20))
         self.rect = self.image.get_rect()
         self.rect.center = [entity.rect.x + x_off, entity.rect.y + y_off]
         self.direction = direction
 
-    def stop(self):
-        self.prev_speed = self.speed
-        self.speed = 0
-
-    def move(self, speed = None):
-        if speed is None:
-            self.speed = self.prev_speed if self.prev_speed != 0 else 800
-        else:
-            self.speed = speed if speed != 0 else 800
-
     def update(self, dt):
-        # shoot bullet upwards
-        if self.direction == 'up':
-            self.rect.move_ip(0, -self.speed * dt)
+        if self.speed <= 0:
+            return
+        else:
+            # shoot bullet upwards
+            if self.direction == 'up':
+                self.rect.move_ip(0, -self.speed * dt)
 
-        # shoot bullet downwards
-        if self.direction == 'down':
-            self.rect.move_ip(0, self.speed * dt)
+            # shoot bullet downwards
+            if self.direction == 'down':
+                self.rect.move_ip(0, self.speed * dt)
 
-        # remove bullet if top of screen is reached
-        # player can only shoot upward
-        if self.rect.y < 0:
-            self.kill()
+            # remove bullet if top of screen is reached
+            # player can only shoot upward
+            if self.rect.y < 0:
+                self.kill()
 
-        # remove bullet if bottom of screen is reached
-        # enemies can only shoot downward
-        if self.rect.y > SCREEN_HEIGHT:
-            self.kill()
+            # remove bullet if bottom of screen is reached
+            # enemies can only shoot downward
+            if self.rect.y > SCREEN_HEIGHT:
+                self.kill()
 
     def draw(self, surface):
         surface.blit(self.image, self.rect)
@@ -246,7 +227,6 @@ class Bullet(pygame.sprite.Sprite):
 class Enemyship(pygame.sprite.Sprite):
     def __init__(self, picture_path):
         super().__init__()
-        self.prev_speed = 0
         self.speed = random.randint(200, 450)
         self.ammo = random.randint(1, 5)
         self.image = pygame.transform.scale(pygame.transform.flip(pygame.image.load(picture_path).convert(), False, True), (60, 60)) # image
@@ -261,16 +241,6 @@ class Enemyship(pygame.sprite.Sprite):
         for data in self.sounds:
             self.sounds[data].set_volume(MASTER_VOLUME * SFX_VOLUME)
 
-    def stop(self):
-        self.prev_speed = self.speed
-        self.speed = 0
-
-    def move(self, speed = None):
-        if speed is None:
-            self.speed = self.prev_speed if self.prev_speed != 0 else random.randint(200, 450)
-        else:
-            self.speed = speed if speed != 0 else random.randint(200, 450)
-
     def shoot(self):
         now = time.time()
         time_to_shoot = (now - self.last_shot) >= self.shot_delay
@@ -283,15 +253,18 @@ class Enemyship(pygame.sprite.Sprite):
             self.last_shot = time.time()
 
     def update(self, dt):
-        self.rect.move_ip(0, self.speed * dt)
+        if self.speed <= 0:
+            return
+        else:
+            self.rect.move_ip(0, self.speed * dt)
 
-        if self.ammo > 0:
-            self.shoot()
+            if self.ammo > 0:
+                self.shoot()
 
-        if self.rect.bottom > SCREEN_HEIGHT:
-            self.rect.x = random.randint(0, SCREEN_WIDTH - 50)
-            self.rect.y = 0
-            self.kill()
+            if self.rect.bottom > SCREEN_HEIGHT:
+                self.rect.x = random.randint(0, SCREEN_WIDTH - 50)
+                self.rect.y = 0
+                self.kill()
 
     def draw(self, surface):
         surface.blit(self.image, self.rect)
@@ -299,14 +272,13 @@ class Enemyship(pygame.sprite.Sprite):
 class Boss(pygame.sprite.Sprite):
     def __init__(self, picture_path, speed = 300, ammo = random.randint(10, 20)):
         super().__init__()
-        self.prev_speed = 0
         self.speed = speed
         self.ammo = ammo
         self.image = pygame.transform.scale(pygame.image.load(picture_path).convert(), (300, 125)) # image
         self.rect = self.image.get_rect(w = 300, h = 100) # hurtbox
         self.rect.center = [random.randint(200, SCREEN_WIDTH - 300), 150] # ship's spawn point
-        # self.health = 10000     # total boss health
-        self.health = 1
+        self.health = 10000     # total boss health
+        # self.health = 1
         self.is_alive = False
         self.last_reload = time.time()
         self.reload_delay = 1
@@ -318,18 +290,6 @@ class Boss(pygame.sprite.Sprite):
         # setting volume level for sounds
         for data in self.sounds:
             self.sounds[data].set_volume(MASTER_VOLUME * SFX_VOLUME)
-
-    def stop(self):
-        self.prev_speed = self.speed
-        self.speed = 0
-
-    def move(self, speed = None):
-        if speed is None:
-            self.speed = self.prev_speed if self.prev_speed != 0 else 300
-        else:
-            self.speed = speed if speed != 0 else 300
-        # elif speed >= 0:
-            # self.speed = 300
 
     def reload(self):
         time_to_reload = (now - self.last_reload) >= self.reload_delay
@@ -404,8 +364,7 @@ def kill_all(entities):
     for entity in entities:
         entity.kill()
 
-PAUSED = False
-SECONDS_ENEMY_SPAWN = 3
+SECONDS_ENEMY_SPAWN = 3 # seconds till a new enemy spawns
 
 # Groups
 player_group        = pygame.sprite.GroupSingle() # player
@@ -423,8 +382,8 @@ ALL_SPRITES.add(player)
 # Alien Boss
 boss = Boss(ALIEN_IMG)
 spawn_regular_enemies = True
-# SPAWN_BOSS_SCORE = 1000
-SPAWN_BOSS_SCORE = 10
+SPAWN_BOSS_SCORE = 1000
+# SPAWN_BOSS_SCORE = 10
 
 # boss sound
 boss_sound = pygame.mixer.Sound(ALIEN_HOVERING_SOUND)
@@ -438,23 +397,35 @@ score_HUD       = TextHUD(text = 'Score: {}'.format(0), pos = (45, 50))
 boss_health_HUD = TextHUD(text = '{:,}/10,000'.format(10000), pos = (SCREEN_WIDTH * 0.5 - 60, 50))
 
 # game state text to be displayed on screen at a later time
-win_text        = TextHUD(text = 'You Win', pos = center)
+win_text         = TextHUD(text = 'You Win', pos = center)
 game_over_text   = TextHUD(text = 'YOU DIED', pos = center,  color1 = (220, 20, 60))
-paused_text      = TextHUD(text = 'Paused', pos = center, color1 = (0,0,0))
+paused_text      = TextHUD(text = 'Paused', pos = center, color1 = (255, 255, 255))
 
 ALL_HUDS = []
 ALL_HUDS.append(lives_HUD)
 ALL_HUDS.append(score_HUD)
 ALL_HUDS.append(boss_health_HUD)
 
-# def loop():
-#     while True:
+GAME_STATE = {
+    'paused': False,
+}
+
+# def loop(ALL_SPRITES):
+#     while GAME_STATE['paused']:
 #         for event in pygame.event.get():
 #             if event.type == pygame.QUIT:
 #                 pygame.quit()
 #                 sys.exit()
-#         SCREEN.fill((0, 0, 0))
+#             if event.type == pygame.KEYUP:
+#                 if event.key == pygame.K_ESCAPE:
+#                     GAME_STATE['paused'] = not GAME_STATE['paused']
+#                     for sprite in ALL_SPRITES:
+#                         sprite.stop()
+#         SCREEN.fill((20, 20, 20))
+#         paused_text.draw(SCREEN)
 #         pygame.display.update()
+#     for sprite in ALL_SPRITES:
+#         sprite.start()
 
 # main game loop
 while True:
@@ -496,26 +467,11 @@ while True:
         boss.kill()
         kill_all(ALL_SPRITES)
 
-    if PAUSED:
-        print('GAME IS PAUSED')
-        # ALL_SPRITES.stop()
-        while PAUSED:
-            SCREEN.fill((255, 255, 255))
-            paused_text.draw(SCREEN)
-            for event in pygame.event.get():
-                """
-                Event checking/handling.
-                """
-                if event.type == pygame.QUIT:
-                    pygame.quit()
-                    sys.exit()
-                if event.type == pygame.KEYUP:
-                    if event.key == pygame.K_ESCAPE:
-                        PAUSED = not PAUSED
-                        # ALL_SPRITES.move()
-
     # remove enemies and spawn boss if score threshold is reached
     if player.score >= SPAWN_BOSS_SCORE:
+        """
+        Remove all enemies and spawn boss if score threshold is reached.
+        """
         kill_all(enemy_group)
 
         if boss.is_alive == False:
@@ -547,24 +503,10 @@ while True:
             pygame.quit()
             sys.exit()
         if event.type == pygame.KEYUP:
-            if event.key == pygame.K_ESCAPE:
-                PAUSED = not PAUSED
             if event.key == pygame.K_h:
                 # turns off all HUD
                 for hud in ALL_HUDS:
                     hud.set_visibility(not hud.show)
-
-                # print(pygame.mixer.music.get_pos())
-                # pygame.mixer.music.set_pos(150/1000)
-                # print('p pressed')
-                # print(PAUSED)
-
-                # PAUSED = True
-                # while PAUSED:
-                #     for event in pygame.event.get():
-                #         if event.key == pygame.K_ESCAPE:
-                #             PAUSED = False
-                #     SCREEN.fill((255, 255, 255))
 
     ##############################
     ###### ENTITY COLLISION ######
@@ -635,16 +577,18 @@ while True:
     ###### GAME STATUS ######
     #########################
 
+    # show player hud as long as they are alive
     if player.is_alive:
         """
-        Draw HUD specfic to the player.
+        As long as the player is still alive, show the player's HUD.
         """
         lives_HUD.draw(SCREEN)
         score_HUD.draw(SCREEN)
 
+    # show enemy hud as long as they are alive
     if boss.is_alive:
         """
-        Draw HUD specfic to the boss.
+        As long as the boss is still alive, show it's health HUD.
         """
         boss_health_HUD.draw(SCREEN)
 
@@ -658,7 +602,6 @@ while True:
         boss.is_alive = False
         player.is_alive = False
         boss_health_HUD.set_visibility(False)
-
         kill_all(ALL_SPRITES)
 
         # if sound has not played yet, play it
@@ -678,7 +621,6 @@ while True:
         boss.is_alive = False
         player.is_alive = False
         boss_health_HUD.set_visibility(False)
-
         kill_all(ALL_SPRITES)
 
         # if sound has not played yet, play it
@@ -696,13 +638,3 @@ while True:
 
     # update pygame
     pygame.display.update()
-
-
-# SOUND
-# .wav for sound fx
-# .mp3 for music
-#
-# bulletSound = pygame.mixer.Sound('fx.wav')
-# bulletSound.play()
-# music = pygame.mixer.music.load('music.mp3')
-# pygame.mixer.music.play(-1) # plays in background music
